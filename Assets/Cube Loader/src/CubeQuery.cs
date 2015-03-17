@@ -3,6 +3,11 @@ using System.Collections;
 using System.Collections.Generic;
 using SimpleJSON;
 using System;
+using System.IO;
+using System.Text;
+using Assets.Cube_Loader.src;
+using ICSharpCode.SharpZipLib.Core;
+using ICSharpCode.SharpZipLib.GZip;
 
 public class CubeQuery
 {
@@ -18,22 +23,27 @@ public class CubeQuery
     public Dictionary<int, VLevelQuery> VLevels { get; set; }
 
     private readonly string indexUrl;
+    private readonly string staticToken;
 
     private readonly MonoBehaviour behavior;
 
-    public CubeQuery(string sceneIndexUrl, MonoBehaviour behaviour)
+    public CubeQuery(string sceneIndexUrl, string staticToken, MonoBehaviour behaviour)
     {
         indexUrl = sceneIndexUrl;
+        this.staticToken = staticToken;
         this.behavior = behaviour;
     }
 
     public IEnumerator Load()
     {
+
         Debug.Log("CubeQuery started against: " + indexUrl);
-        WWW loader = new WWW(indexUrl);
+        var loader = Helpers.GetConfiguredWww(indexUrl, staticToken);
         yield return loader;
 
-        var index = JSON.Parse(loader.text);
+
+
+        var index = JSON.Parse(loader.GetUnzippedText());
 
         MinimumViewport = index["MinimumViewport"].AsInt;
         MaximumViewport = index["MaximumViewport"].AsInt;
@@ -50,7 +60,7 @@ public class CubeQuery
         for (int i = MinimumViewport; i <= MaximumViewport; i++)
         {
             string path = MetadataTemplate.Replace("{v}", i.ToString());
-            var vlevel = new VLevelQuery(i, path);
+            var vlevel = new VLevelQuery(i, path, staticToken);
             yield return behavior.StartCoroutine(vlevel.Load());
             VLevels.Add(i, vlevel);
         }
@@ -68,28 +78,31 @@ public class VLevelQuery
 
     private readonly string metadataUrl;
 
+    private readonly string staticToken;
+
     public Vector3 MinExtent { get; private set; }
     public Vector3 MaxExtent { get; private set; }
     public Vector3 Size { get; private set; }
 
-    public VLevelQuery(int viewportLevel, string viewportMetadataUrl)
+    public VLevelQuery(int viewportLevel, string viewportMetadataUrl, string staticToken)
     {
         ViewportLevel = viewportLevel;
         metadataUrl = viewportMetadataUrl;
+        this.staticToken = staticToken;
     }
 
     public IEnumerator Load()
     {
-        WWW loader = new WWW(metadataUrl);
+        WWW loader = Helpers.GetConfiguredWww(metadataUrl, staticToken);
         yield return loader;
 
         // POPULATE THE BOOL ARRAY...
-        var metadata = JSON.Parse(loader.text);
+        var metadata = JSON.Parse(loader.GetUnzippedText());
         int xMax = metadata["GridSize"]["X"].AsInt;
         int yMax = metadata["GridSize"]["Y"].AsInt;
         int zMax = metadata["GridSize"]["Z"].AsInt;
 
-        CubeMap = new bool[xMax,yMax,zMax];
+        CubeMap = new bool[xMax, yMax, zMax];
 
         var cubeExists = metadata["CubeExists"];
         for (int x = 0; x < xMax; x++)

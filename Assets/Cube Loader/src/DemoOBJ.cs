@@ -2,11 +2,16 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
+using Assets.Cube_Loader.src;
+using Debug = UnityEngine.Debug;
 
 public class DemoOBJ : MonoBehaviour {
 
     public string ObjectIndex;
+    public string StaticToken;
+    public bool RequestCompression = true;
 
     public int Viewport = 1;
 
@@ -38,7 +43,7 @@ public class DemoOBJ : MonoBehaviour {
     
     private string basepath;
     private string mtllib;
-	private string mtlOverride;
+    private string mtlOverride;
 
     private readonly Dictionary<string, List<MaterialData>> materialDataCache = new Dictionary<string, List<MaterialData>>();
     private readonly Dictionary<string, Texture2D> textureCache = new Dictionary<string, Texture2D>();
@@ -58,7 +63,7 @@ public class DemoOBJ : MonoBehaviour {
     
     public IEnumerator Load()
     {
-        CubeQuery query = new CubeQuery(ObjectIndex, this);
+        CubeQuery query = new CubeQuery(ObjectIndex, StaticToken, this);
         yield return StartCoroutine(query.Load());
 
         var vlevel = query.VLevels[Viewport];
@@ -73,7 +78,7 @@ public class DemoOBJ : MonoBehaviour {
             .Replace("{z}", "{2}")
             .Replace("{v}", Viewport.ToString());
 
-		mtlOverride = query.MtlTemplate.Replace("{v}", Viewport.ToString ());
+        mtlOverride = query.MtlTemplate.Replace("{v}", Viewport.ToString ());
 
 
         if (Camera != null)
@@ -104,29 +109,27 @@ public class DemoOBJ : MonoBehaviour {
                         GeometryBuffer buffer = new GeometryBuffer();
                         List<MaterialData> materialData = new List<MaterialData>();
 
-                        WWW loader = new WWW(path);
+                        WWW loader = Helpers.GetConfiguredWww(path, StaticToken, RequestCompression);
                         yield return loader;
-                        if (!string.IsNullOrEmpty(loader.error))
-                        {
-                            continue;
-                        }
-                        SetGeometryData(loader.text, buffer);
+                        loader.LogResponseIfError();
+                        SetGeometryData(loader.GetUnzippedText(), buffer);
 
                         if (hasMaterials)
                         {
                             if (!materialDataCache.ContainsKey(mtllib))
                             {
-								if (!string.IsNullOrEmpty(mtlOverride))
-								{
-									loader = new WWW(mtlOverride);
-								}
-								else
-								{
-                                	loader = new WWW(basepath + mtllib);
-								}
+                                if (!string.IsNullOrEmpty(mtlOverride))
+                                {
+                                    loader = Helpers.GetConfiguredWww(mtlOverride, StaticToken, RequestCompression);
+                                }
+                                else
+                                {
+                                    loader = Helpers.GetConfiguredWww(basepath + mtllib, StaticToken, RequestCompression);
+                                }
 
                                 yield return loader;
-                                SetMaterialData(loader.text, materialData);
+                                loader.LogResponseIfError();
+                                SetMaterialData(loader.GetUnzippedText(), materialData);
                                 materialDataCache[mtllib] = materialData;
                             }
                             materialData = materialDataCache[mtllib];
@@ -137,8 +140,10 @@ public class DemoOBJ : MonoBehaviour {
                                 {
                                     if (!textureCache.ContainsKey(m.diffuseTexPath))
                                     {
-                                        WWW texloader = new WWW(basepath + m.diffuseTexPath);
+                                        // Do not request compression for textures
+                                        var texloader = Helpers.GetConfiguredWww(basepath + m.diffuseTexPath, StaticToken, false);
                                         yield return texloader;
+                                        texloader.LogResponseIfError();
                                         textureCache[m.diffuseTexPath] = texloader.texture;
                                     }
                                     m.diffuseTex = textureCache[m.diffuseTexPath];
@@ -155,8 +160,10 @@ public class DemoOBJ : MonoBehaviour {
                                                                            .Replace("{y}", texY.ToString());
                                             if (!textureCache.ContainsKey(texPath))
                                             {
-                                                WWW texloader = new WWW(texPath);
+                                                // Do not request compression for textures
+                                                var texloader = Helpers.GetConfiguredWww(texPath, StaticToken, false);
                                                 yield return texloader;
+                                                texloader.LogResponseIfError();
                                                 textureCache[texPath] = texloader.texture;
                                             }
                                             m.dividedDiffuseTex[texX, texY] = textureCache[texPath];
@@ -168,10 +175,6 @@ public class DemoOBJ : MonoBehaviour {
                         }
 
                         Build(buffer, materialData, x, y, z);
-                    }
-                    else
-                    {
-                        // Debug.Log(String.Format("Skipping [{0},{1},{2}]", x, y, z));
                     }
                 }
             }
@@ -214,7 +217,7 @@ public class DemoOBJ : MonoBehaviour {
                         buffer.PushFace(fi);
                     }
                     break;
-				case MTL:
+                case MTL:
                     mtllib = p[1].Trim();
                     break;
                 case UML:
@@ -306,24 +309,24 @@ public class DemoOBJ : MonoBehaviour {
 
         if (md.diffuseTexDivisions == 2 && UseDividedTexture)
         {
-			m = new Material[4];
+            m = new Material[4];
 
-			m[0] = new Material(Shader.Find(("Custom/QuadShader")));            
-			m[1] = new Material(Shader.Find(("Custom/QuadShader")));
-			m[2] = new Material(Shader.Find(("Custom/QuadShader")));
-			m[3] = new Material(Shader.Find(("Custom/QuadShader")));
+            m[0] = new Material(Shader.Find(("Custom/QuadShader")));            
+            m[1] = new Material(Shader.Find(("Custom/QuadShader")));
+            m[2] = new Material(Shader.Find(("Custom/QuadShader")));
+            m[3] = new Material(Shader.Find(("Custom/QuadShader")));
 
             m[0].SetTexture("_MainTex", md.dividedDiffuseTex[0, 1]);
-			m[0].SetVector("_UVExtents", new Vector4(0f,0f,0.5f,0.5f));
+            m[0].SetVector("_UVExtents", new Vector4(0f,0f,0.5f,0.5f));
 
-			m[1].SetTexture("_MainTex", md.dividedDiffuseTex[1, 1]);
-			m[1].SetVector("_UVExtents", new Vector4(0.5f,0f,1f,0.5f));
+            m[1].SetTexture("_MainTex", md.dividedDiffuseTex[1, 1]);
+            m[1].SetVector("_UVExtents", new Vector4(0.5f,0f,1f,0.5f));
 
-			m[2].SetTexture("_MainTex", md.dividedDiffuseTex[0, 0]);
-			m[2].SetVector("_UVExtents", new Vector4(0f,0.5f,0.5f,1f));
+            m[2].SetTexture("_MainTex", md.dividedDiffuseTex[0, 0]);
+            m[2].SetVector("_UVExtents", new Vector4(0f,0.5f,0.5f,1f));
 
-			m[3].SetTexture("_MainTex", md.dividedDiffuseTex[1, 0]);
-			m[3].SetVector("_UVExtents", new Vector4(0.5f,0.5f,1f,1f));		
+            m[3].SetTexture("_MainTex", md.dividedDiffuseTex[1, 0]);
+            m[3].SetVector("_UVExtents", new Vector4(0.5f,0.5f,1f,1f));		
         }
         else
         {
@@ -331,19 +334,19 @@ public class DemoOBJ : MonoBehaviour {
             // Use an unlit shader for the model if set
             if (UseUnlitShader)
             {
-				m = new Material[] { new Material(Shader.Find(("Unlit/Texture")))};
+                m = new Material[] { new Material(Shader.Find(("Unlit/Texture")))};
             }
             else
             {
                 if (md.illumType == 2)
                 {
-					m = new Material[] { new Material(Shader.Find("Specular")) };
+                    m = new Material[] { new Material(Shader.Find("Specular")) };
                     m[0].SetColor("_SpecColor", md.specular);
                     m[0].SetFloat("_Shininess", md.shininess);
                 }
                 else
                 {
-					m = new Material[] { new Material(Shader.Find("Diffuse")) };
+                    m = new Material[] { new Material(Shader.Find("Diffuse")) };
                 }
 
                 m[0].SetColor("_Color", md.diffuse);
@@ -377,7 +380,7 @@ public class DemoOBJ : MonoBehaviour {
             const string defaultKey = "default";
             if (!materialCache.ContainsKey(defaultKey))
             {
-				materialCache[defaultKey] = new Material[] { new Material(Shader.Find("VertexLit")) };
+                materialCache[defaultKey] = new Material[] { new Material(Shader.Find("VertexLit")) };
             }
             materials.Add(defaultKey, materialCache[defaultKey]);
         }
