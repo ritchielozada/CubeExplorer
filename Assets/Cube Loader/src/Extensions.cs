@@ -7,6 +7,7 @@
     using ICSharpCode.SharpZipLib.GZip;
     using UnityEngine;
     using Debug = UnityEngine.Debug;
+    using DeflateStream = Ionic.Zlib.DeflateStream;
     using GZipStream = Ionic.Zlib.GZipStream;
 
     public static class Extensions
