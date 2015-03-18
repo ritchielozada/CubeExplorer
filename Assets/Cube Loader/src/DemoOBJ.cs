@@ -112,7 +112,7 @@ public class DemoOBJ : MonoBehaviour {
                         WWW loader = Helpers.GetConfiguredWww(path, StaticToken, RequestCompression);
                         yield return loader;
                         loader.LogResponseIfError();
-                        SetGeometryData(loader.GetUnzippedText(), buffer);
+                        SetGeometryData(loader.GetDecompressedText(), buffer);
 
                         if (hasMaterials)
                         {
@@ -129,7 +129,7 @@ public class DemoOBJ : MonoBehaviour {
 
                                 yield return loader;
                                 loader.LogResponseIfError();
-                                SetMaterialData(loader.GetUnzippedText(), materialData);
+                                SetMaterialData(loader.GetDecompressedText(), materialData);
                                 materialDataCache[mtllib] = materialData;
                             }
                             materialData = materialDataCache[mtllib];

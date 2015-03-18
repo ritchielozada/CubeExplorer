@@ -43,7 +43,7 @@ public class CubeQuery
 
 
 
-        var index = JSON.Parse(loader.GetUnzippedText());
+        var index = JSON.Parse(loader.GetDecompressedText());
 
         MinimumViewport = index["MinimumViewport"].AsInt;
         MaximumViewport = index["MaximumViewport"].AsInt;
@@ -97,7 +97,7 @@ public class VLevelQuery
         yield return loader;
 
         // POPULATE THE BOOL ARRAY...
-        var metadata = JSON.Parse(loader.GetUnzippedText());
+        var metadata = JSON.Parse(loader.GetDecompressedText());
         int xMax = metadata["GridSize"]["X"].AsInt;
         int yMax = metadata["GridSize"]["Y"].AsInt;
         int zMax = metadata["GridSize"]["Z"].AsInt;
