@@ -4,6 +4,8 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
+using System.IO;
+using System.Net;
 using Assets.Cube_Loader.src;
 using Debug = UnityEngine.Debug;
 
@@ -100,19 +102,38 @@ public class DemoOBJ : MonoBehaviour {
                 {
                     if (cubeMap[x, y, z])
                     {
-                        String path = string.Format(objectLocationFormat, x, y, z);
+                        String path = string.Format(objectLocationFormat, x, y, z).Replace("http:", "https:");
                         if (basepath == null)
                         {
                             basepath = (path.IndexOf("/") == -1) ? "" : path.Substring(0, path.LastIndexOf("/") + 1);
                         }
-
+                        WWW loader;
                         GeometryBuffer buffer = new GeometryBuffer();
                         List<MaterialData> materialData = new List<MaterialData>();
+                        var request = HttpWebRequest.Create(path) as HttpWebRequest;
+                        request.Headers[HttpRequestHeader.Authorization] = "StaticToken " + StaticToken;
+                        var wa = new WebAsync();
+                        StartCoroutine(wa.GetResponse(request));
 
-                        WWW loader = Helpers.GetConfiguredWww(path, StaticToken, RequestCompression);
-                        yield return loader;
-                        loader.LogResponseIfError();
-                        SetGeometryData(loader.GetUnzippedText(), buffer);
+                        while (!wa.isResponseCompleted)
+                        {
+                            yield return null;
+                        }
+                        if (string.IsNullOrEmpty(wa.requestState.errorMessage))
+                        {
+                            using (var sr = new StreamReader(wa.requestState.webResponse.GetResponseStream()))
+                            {
+                                SetGeometryData(sr.ReadToEnd(), buffer);
+                            }
+                        }
+                        else
+                        {
+                            loader = Helpers.GetConfiguredWww(path, StaticToken, RequestCompression);
+                            yield return loader;
+                            loader.LogResponseIfError();
+                            SetGeometryData(loader.GetUnzippedText(), buffer);
+                        }
+
 
                         if (hasMaterials)
                         {
