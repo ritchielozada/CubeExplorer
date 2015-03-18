@@ -7,14 +7,17 @@
     using ICSharpCode.SharpZipLib.GZip;
     using UnityEngine;
     using Debug = UnityEngine.Debug;
+    using DeflateStream = Ionic.Zlib.DeflateStream;
+    using GZipStream = Ionic.Zlib.GZipStream;
 
     public static class Extensions
     {
         private const string ContentEncodingHeaderName = "CONTENT-ENCODING";
         private const string GzipContentEncodingValue = "gzip";
 
-        public static string GetUnzippedText(this WWW response)
+        public static string GetDecompressedText(this WWW response)
         {
+        #if UNITY_STANDALONE_WIN
             string contentEncoding;
             if (response.responseHeaders == null ||
                 !response.responseHeaders.TryGetValue(ContentEncodingHeaderName, out contentEncoding) ||
@@ -22,13 +25,26 @@
             {
                 return response.text;
             }
+            return GZipStream.UncompressString(response.bytes);
+        #else // UNITY_STANDALONE_WIN
+            return response.text;
+        #endif // UNITY_STANDALONE_WIN
+        }
 
-            using (var stream = new MemoryStream(response.bytes))
-            using (var gzip = new GZipInputStream(stream))
-            using (var sr = new StreamReader(gzip))
+        public static byte[] GetDecompressedBuffer(this WWW response)
+        {
+        #if UNITY_STANDALONE_WIN
+            string contentEncoding;
+            if (response.responseHeaders == null ||
+                !response.responseHeaders.TryGetValue(ContentEncodingHeaderName, out contentEncoding) ||
+                contentEncoding != GzipContentEncodingValue)
             {
-                return sr.ReadToEnd();
+                return response.bytes;
             }
+            return GZipStream.UncompressBuffer(response.bytes);
+        #else // UNITY_STANDALONE_WIN
+            return response.bytes;
+        #endif // UNITY_STANDALONE_WIN
         }
 
         public static void LogResponseIfError(this WWW response)
