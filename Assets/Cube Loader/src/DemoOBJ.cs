@@ -17,6 +17,7 @@ public class DemoOBJ : MonoBehaviour {
 
     public bool UseUnlitShader = false;
     public bool UseDividedTexture = false;
+	public bool UseEbo = false;
 
     public Camera Camera;
     
@@ -109,10 +110,32 @@ public class DemoOBJ : MonoBehaviour {
                         GeometryBuffer buffer = new GeometryBuffer();
                         List<MaterialData> materialData = new List<MaterialData>();
 
-                        WWW loader = Helpers.GetConfiguredWww(path, StaticToken, RequestCompression);
-                        yield return loader;
-                        loader.LogResponseIfError();
-                        SetGeometryData(loader.GetDecompressedText(), buffer);
+						WWW loader;
+
+						if (!UseEbo)
+						{
+                            loader = Helpers.GetConfiguredWww(path, StaticToken, RequestCompression);
+                            yield return loader;
+                            loader.LogResponseIfError();
+	                        if (!string.IsNullOrEmpty(loader.error))
+	                        {
+	                            continue;
+	                        }
+                            SetGeometryData(loader.GetDecompressedText(), buffer);
+
+
+						}
+						else
+						{
+							loader = new WWW(path + ".ebo");
+							yield return loader;
+							if (!string.IsNullOrEmpty(loader.error))
+							{
+								continue;
+							}
+							buffer.eboBuffer = loader.bytes;
+							mtllib = "model.mtl";
+						}
 
                         if (hasMaterials)
                         {
