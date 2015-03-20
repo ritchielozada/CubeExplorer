@@ -10,6 +10,7 @@ using System.IO;
 		public List<Vector2> uvs;
 		public List<Vector3> normals;
 		public byte[] eboBuffer;
+	public MemoryStream eboMs;
 		
 		private ObjectData current;
 		private class ObjectData {
@@ -119,7 +120,7 @@ using System.IO;
 
 		public void PopulateMeshes(GameObject[] gs, Dictionary<string, Material[]> mats) 
 		{
-			if (eboBuffer == null)
+			if (eboBuffer == null && eboMs == null)
 			{
 				PopulateMeshesObj(gs, mats);
 			}
@@ -129,15 +130,29 @@ using System.IO;
 			}
 		}
 
+	void DebugLog(string fmt, params object[] args) {
+		if(true) {
+			string content = string.Format(fmt,args);
+			Debug.LogFormat("{0}: {1}", _sw.ElapsedMilliseconds, content);
+		}
+	}
+
+	System.Diagnostics.Stopwatch _sw = System.Diagnostics.Stopwatch.StartNew();
+
 	public void PopulateMeshesEbo(GameObject[] gs, Dictionary<string, Material[]> mats) {
 
 		int vertexCount;
 		Vector3[] tvertices;
 		Vector2[] tuvs;
 
-		using (var s = new MemoryStream(eboBuffer))
+		long prevl = _sw.ElapsedMilliseconds;
+
+		DebugLog("ardvark: populatemeshstart: " + (_sw.ElapsedMilliseconds - prevl));
+
+		using (var s = eboMs == null ? new MemoryStream(eboBuffer) : eboMs)// new MemoryStream(eboBuffer))
 		using (var br = new BinaryReader(s))
 		{
+			DebugLog("ardvark: popmesh create streams: " + (_sw.ElapsedMilliseconds - prevl));
 			// File is prefixed with face count, times 3 for vertices
 			vertexCount = br.ReadUInt16() * 3;
 
@@ -166,9 +181,9 @@ using System.IO;
 					break;
 				}
 			}
-
+			DebugLog("ardvark: popmesh done verts: " + (_sw.ElapsedMilliseconds - prevl));
 		}
-
+		DebugLog("ardvark: popmesh done streams: " + (_sw.ElapsedMilliseconds - prevl));
 		Mesh m = (gs[0].GetComponent(typeof(MeshFilter)) as MeshFilter).mesh;
 		m.vertices = tvertices;
 		m.uv = tuvs;
